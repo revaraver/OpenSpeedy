@@ -30,6 +30,12 @@ export interface SettingsState {
   comboPressSpeed: number;
   comboReleaseSpeed: number;
 
+  // 快捷键互换：按下 swapShortcut，把 swapSlotA / swapSlotB 这两个槽位上
+  // 实际绑定的快捷键对调，并持久写回设置。
+  swapShortcut: string;
+  swapSlotA: string;
+  swapSlotB: string;
+
   theme: "light" | "dark";
   autoStart: boolean;
   alwaysOnTop: boolean;
@@ -66,6 +72,9 @@ export const DEFAULTS: SettingsState = {
   comboPressSpeed: 2.0,
   comboReleaseSpeed: 1.0,
 
+  swapShortcut: "",
+  swapSlotA: "",
+  swapSlotB: "",
   theme: "light" as const,
   autoStart: false,
   alwaysOnTop: false,
@@ -75,6 +84,24 @@ export const DEFAULTS: SettingsState = {
   language: "en-US" as const,
   speed: 1.0,
 };
+
+// ── 可互换槽位表 ───────────────────────────────────────────────────────
+// swapSlotA/B 存的就是这里的 key。不含 swapShortcut 自己。
+export type SwappableSlot = { key: string; labelKey: string; suffix?: string };
+
+export const SWAPPABLE_SLOTS: SwappableSlot[] = [
+  { key: "increaseSpeedShortcut", labelKey: "settings.increase" },
+  { key: "decreaseSpeedShortcut", labelKey: "settings.decrease" },
+  { key: "resetSpeedShortcut", labelKey: "settings.reset" },
+  { key: "gear1Shortcut", labelKey: "settings.gear", suffix: "1" },
+  { key: "gear2Shortcut", labelKey: "settings.gear", suffix: "2" },
+  { key: "gear3Shortcut", labelKey: "settings.gear", suffix: "3" },
+  { key: "gear4Shortcut", labelKey: "settings.gear", suffix: "4" },
+  { key: "gear5Shortcut", labelKey: "settings.gear", suffix: "5" },
+  { key: "holdShortcut", labelKey: "settings.hold" },
+  { key: "comboShortcut", labelKey: "settings.combo" },
+  { key: "comboSwapShortcut", labelKey: "settings.comboSwap" },
+];
 
 // ── Store (singleton) ─────────────────────────────────────────────────────
 

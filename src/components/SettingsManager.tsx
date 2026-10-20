@@ -13,6 +13,7 @@ import LanguageIcon from "@mui/icons-material/Language";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import PushPinIcon from "@mui/icons-material/PushPin";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import { invoke } from "@tauri-apps/api/core";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { useSettings } from "../hooks/useSettings";
@@ -20,6 +21,7 @@ import { useShortcut, toggleComboSwap, isComboSwapped } from "../hooks/useShortc
 import { useSnackbar } from "../contexts/SnackbarContext";
 import { reportError } from "../utils/frontendLog";
 import type { SettingsState } from "../store/settings";
+import { SWAPPABLE_SLOTS } from "../store/settings";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -37,7 +39,7 @@ function Row({ label, children }: { label: React.ReactNode; children: React.Reac
 export default function SettingsManager() {
   const { t } = useTranslation();
   const { settings, get, set } = useSettings();
-  const { register, registerHold, unregister, shortcutStatus } = useShortcut();
+  const { register, registerHold, registerHoldRestore, registerSwap, unregister, shortcutStatus } = useShortcut();
   const { notify } = useSnackbar();
 
   // Sync auto-start state from system on mount. Reported rather than swallowed:
@@ -62,10 +64,10 @@ export default function SettingsManager() {
     await set(key as keyof SettingsState, newVal);
   }
 
-  async function changeHoldShortcut(oldVal: string, newVal: string, onPress: () => void, onRelease: () => void) {
+  async function changeHoldShortcut(oldVal: string, newVal: string) {
     if (oldVal) await unregister(oldVal).catch(() => { });
     if (newVal) {
-      const ok = await registerHold(newVal, onPress, onRelease).catch(() => false);
+      const ok = await registerHoldRestore(newVal).catch(() => false);
       if (ok) {
         notify(t("settings.registerSuccess", { shortcut: newVal }), "success");
       } else {
@@ -74,6 +76,18 @@ export default function SettingsManager() {
     }
     await set("holdShortcut", newVal);
   }
+
+  // 互换键改键：必须用 registerSwap，否则注册上去的是空处理器。
+  async function changeSwapShortcut(oldVal: string, newVal: string) {
+    if (oldVal) await unregister(oldVal).catch(() => { });
+    if (newVal) {
+      const ok = await registerSwap(newVal).catch(() => false);
+      if (ok) notify(t("settings.registerSuccess", { shortcut: newVal }), "success");
+      else notify(t("settings.registerFail", { shortcut: newVal }), "error");
+    }
+    await set("swapShortcut", newVal);
+  }
+
 
   // 组合变速改键：A 只负责翻转 X/Y，不直接改速度。
   async function changeComboSwapShortcut(oldVal: string, newVal: string) {
@@ -255,17 +269,7 @@ export default function SettingsManager() {
                 <ShortcutField
                   value={settings?.holdShortcut as string}
                   conflict={shortcutStatus[settings?.holdShortcut as string] === false}
-                  onChange={v => {
-                    const old = settings?.holdShortcut as string;
-                    changeHoldShortcut(old, v, () => {
-                      const hs = (get("holdSpeed") as number) || 2.0;
-                      invoke("bridge_set_speed", { factor: hs });
-                      set("speed", hs);
-                    }, () => {
-                      invoke("bridge_set_speed", { factor: 1.0 });
-                      set("speed", 1.0);
-                    });
-                  }}
+                  onChange={v => changeHoldShortcut(settings?.holdShortcut as string, v)}
                 />
               </TableCell>
               <TableCell sx={{ border: "none" }}>
@@ -321,8 +325,56 @@ export default function SettingsManager() {
                 </Box>
               </TableCell>
             </TableRow>
-          </TableBody>
-        </Table>
+            {/* 快捷键互换 — 按下后对调下面两个槽位上实际绑定的快捷键（持久） */}
+            <TableRow>
+              <TableCell sx={{ border: "none" }}>
+                <Box sx={{ display: "flex", flexDirection: "column" }}>
+                  <span>{t("settings.swap")}</span>
+                  <Typography variant="caption" color="text.disabled">
+                    {t("settings.swapHint")}
+                  </Typography>
+                </Box>
+              </TableCell>
+              <TableCell sx={{ border: "none" }}>
+                <ShortcutField
+                  value={settings?.swapShortcut as string}
+                  conflict={shortcutStatus[settings?.swapShortcut as string] === false}
+                  onChange={v => changeSwapShortcut(settings?.swapShortcut as string, v)}
+                />
+              </TableCell>
+              <TableCell sx={{ border: "none" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Select size="small" displayEmpty sx={{ minWidth: 132 }}
+                    value={settings?.swapSlotA as string}
+                    onChange={e => set("swapSlotA", e.target.value)}>
+                    <MenuItem value="">{t("settings.swapEmpty")}</MenuItem>
+                    {SWAPPABLE_SLOTS.map(sl => (
+                        <MenuItem key={sl.key} value={sl.key}>
+                          {t(sl.labelKey)}{sl.suffix ? " " + sl.suffix : ""}
+                          <Box component="span" sx={{ ml: 0.5, color: "text.disabled" }}>
+                            = {(settings?.[sl.key as keyof SettingsState] as string) || t("settings.swapNone")}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                  </Select>
+                  <SwapHorizIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                  <Select size="small" displayEmpty sx={{ minWidth: 132 }}
+                    value={settings?.swapSlotB as string}
+                    onChange={e => set("swapSlotB", e.target.value)}>
+                    <MenuItem value="">{t("settings.swapEmpty")}</MenuItem>
+                    {SWAPPABLE_SLOTS.map(sl => (
+                        <MenuItem key={sl.key} value={sl.key}>
+                          {t(sl.labelKey)}{sl.suffix ? " " + sl.suffix : ""}
+                          <Box component="span" sx={{ ml: 0.5, color: "text.disabled" }}>
+                            = {(settings?.[sl.key as keyof SettingsState] as string) || t("settings.swapNone")}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                  </Select>
+                </Box>
+              </TableCell>
+            </TableRow>
+          </TableBody>        </Table>
 
         <Divider sx={{ my: 2 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
