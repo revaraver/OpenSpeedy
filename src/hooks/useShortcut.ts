@@ -161,7 +161,16 @@ export function useShortcut() {
     }
     const comboSwapShortcut = s.comboSwapShortcut as string | undefined;
     if (comboSwapShortcut) {
-      await reg(comboSwapShortcut, () => { toggleComboSwap(); });
+      await reg(comboSwapShortcut, () => {
+        const swapped = toggleComboSwap();
+        // 翻转之后"松开时"那一挡变成 swapped ? X : Y。A 顺手把当前倍率直接
+        // 设成它，翻完状态就自洽，不用等一次按放才切过去。
+        const x = (get("comboPressSpeed" as keyof typeof s) as number) || 2.0;
+        const y = (get("comboReleaseSpeed" as keyof typeof s) as number) || 1.0;
+        const release = swapped ? x : y;
+        invoke("bridge_set_speed", { factor: release });
+        set("speed", release);
+      });
     }
   }, [register, registerHold, set, getAll, get]);
 

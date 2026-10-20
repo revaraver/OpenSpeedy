@@ -79,7 +79,14 @@ export default function SettingsManager() {
   async function changeComboSwapShortcut(oldVal: string, newVal: string) {
     if (oldVal) await unregister(oldVal).catch(() => { });
     if (newVal) {
-      const ok = await register(newVal, () => { toggleComboSwap(); }).catch(() => false);
+      const ok = await register(newVal, () => {
+        const swapped = toggleComboSwap();
+        const x = (get("comboPressSpeed") as number) || 2.0;
+        const y = (get("comboReleaseSpeed") as number) || 1.0;
+        const release = swapped ? x : y;
+        invoke("bridge_set_speed", { factor: release });
+        set("speed", release);
+      }).catch(() => false);
       if (ok) notify(t("settings.registerSuccess", { shortcut: newVal }), "success");
       else notify(t("settings.registerFail", { shortcut: newVal }), "error");
     }
