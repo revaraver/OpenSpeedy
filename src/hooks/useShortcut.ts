@@ -111,16 +111,24 @@ export function useShortcut() {
       });
     }
 
-    // Hold shortcut: press → target speed, release → reset to 1.0
+    // Hold shortcut: press → target speed, release → restore the speed that
+    // was active before the press (not a hardcoded 1.0). The baseline is
+    // captured on the first press and kept until a release consumes it, so a
+    // missed Release event cannot clobber it with the hold speed itself.
     const holdShortcut = s.holdShortcut as string | undefined;
     if (holdShortcut) {
+      let holdBaseline: number | null = null;
       await registerHold(holdShortcut, () => {
+        if (holdBaseline === null) holdBaseline = (get("speed") as number) ?? 1.0;
         const hs = (get("holdSpeed") as number) || 2.0;
         invoke("bridge_set_speed", { factor: hs });
         set("speed", hs);
       }, () => {
-        invoke("bridge_set_speed", { factor: 1.0 });
-        set("speed", 1.0);
+        if (holdBaseline === null) return;
+        const back = holdBaseline;
+        holdBaseline = null;
+        invoke("bridge_set_speed", { factor: back });
+        set("speed", back);
       });
     }
   }, [register, registerHold, set, getAll, get]);
