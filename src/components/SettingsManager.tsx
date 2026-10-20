@@ -16,7 +16,7 @@ import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import { invoke } from "@tauri-apps/api/core";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { useSettings } from "../hooks/useSettings";
-import { useShortcut } from "../hooks/useShortcut";
+import { useShortcut, toggleComboSwap, isComboSwapped } from "../hooks/useShortcut";
 import { useSnackbar } from "../contexts/SnackbarContext";
 import { reportError } from "../utils/frontendLog";
 import type { SettingsState } from "../store/settings";
@@ -74,6 +74,42 @@ export default function SettingsManager() {
     }
     await set("holdShortcut", newVal);
   }
+
+  // 组合变速改键：A 只负责翻转 X/Y，不直接改速度。
+  async function changeComboSwapShortcut(oldVal: string, newVal: string) {
+    if (oldVal) await unregister(oldVal).catch(() => { });
+    if (newVal) {
+      const ok = await register(newVal, () => { toggleComboSwap(); }).catch(() => false);
+      if (ok) notify(t("settings.registerSuccess", { shortcut: newVal }), "success");
+      else notify(t("settings.registerFail", { shortcut: newVal }), "error");
+    }
+    await set("comboSwapShortcut", newVal);
+  }
+
+  // B 按住 → X，松开 → Y；是否互换看当前翻转状态。
+  async function changeComboShortcut(oldVal: string, newVal: string) {
+    if (oldVal) await unregister(oldVal).catch(() => { });
+    if (newVal) {
+      const pick = (press: boolean) => {
+        const x = (get("comboPressSpeed") as number) || 2.0;
+        const y = (get("comboReleaseSpeed") as number) || 1.0;
+        return isComboSwapped() ? (press ? y : x) : (press ? x : y);
+      };
+      const ok = await registerHold(newVal, () => {
+        const v = pick(true);
+        invoke("bridge_set_speed", { factor: v });
+        set("speed", v);
+      }, () => {
+        const v = pick(false);
+        invoke("bridge_set_speed", { factor: v });
+        set("speed", v);
+      }).catch(() => false);
+      if (ok) notify(t("settings.registerSuccess", { shortcut: newVal }), "success");
+      else notify(t("settings.registerFail", { shortcut: newVal }), "error");
+    }
+    await set("comboShortcut", newVal);
+  }
+
 
   if (!settings) {
     return <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -231,6 +267,51 @@ export default function SettingsManager() {
                   onChange={e => set("holdSpeed", Number(e.target.value) || 2)}
                   sx={{ width: 80 }}
                   slotProps={{ htmlInput: { min: 0.01, max: 100, step: 0.1 } }} />
+              </TableCell>
+            </TableRow>
+            {/* 组合变速 — A 键交换 X/Y 位置；B 键按住走 X、松开走 Y */}
+            <TableRow>
+              <TableCell sx={{ border: "none" }}>
+                <Box sx={{ display: "flex", flexDirection: "column" }}>
+                  <span>{t("settings.comboSwap")}</span>
+                  <Typography variant="caption" color="text.disabled">
+                    {t("settings.comboSwapHint")}
+                  </Typography>
+                </Box>
+              </TableCell>
+              <TableCell sx={{ border: "none" }}>
+                <ShortcutField
+                  value={settings?.comboSwapShortcut as string}
+                  conflict={shortcutStatus[settings?.comboSwapShortcut as string] === false}
+                  onChange={v => changeComboSwapShortcut(settings?.comboSwapShortcut as string, v)}
+                />
+              </TableCell>
+              <TableCell sx={{ border: "none" }} />
+            </TableRow>
+            <TableRow>
+              <TableCell sx={{ border: "none" }}>{t("settings.combo")}</TableCell>
+              <TableCell sx={{ border: "none" }}>
+                <ShortcutField
+                  value={settings?.comboShortcut as string}
+                  conflict={shortcutStatus[settings?.comboShortcut as string] === false}
+                  onChange={v => changeComboShortcut(settings?.comboShortcut as string, v)}
+                />
+              </TableCell>
+              <TableCell sx={{ border: "none" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Typography variant="caption" color="text.disabled">{t("settings.comboPress")}</Typography>
+                  <TextField type="number" size="small"
+                    value={settings?.comboPressSpeed as number}
+                    onChange={e => set("comboPressSpeed", Number(e.target.value) || 2)}
+                    sx={{ width: 72 }}
+                    slotProps={{ htmlInput: { min: 0.01, max: 100, step: 0.1 } }} />
+                  <Typography variant="caption" color="text.disabled">{t("settings.comboRelease")}</Typography>
+                  <TextField type="number" size="small"
+                    value={settings?.comboReleaseSpeed as number}
+                    onChange={e => set("comboReleaseSpeed", Number(e.target.value) || 1)}
+                    sx={{ width: 72 }}
+                    slotProps={{ htmlInput: { min: 0.01, max: 100, step: 0.1 } }} />
+                </Box>
               </TableCell>
             </TableRow>
           </TableBody>

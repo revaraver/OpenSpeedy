@@ -15,6 +15,16 @@ type ShortcutTriggerState = {
 let _statusCache: Record<string, boolean> = {};
 const _statusListeners = new Set<() => void>();
 
+// 组合变速的翻转状态：A 键按一下取反一次。放在模块级，这样改设置重新注册
+// 快捷键时不会把已经翻转的状态清掉。
+let _comboSwapped = false;
+export function isComboSwapped(): boolean { return _comboSwapped; }
+export function toggleComboSwap(): boolean {
+  _comboSwapped = !_comboSwapped;
+  console.log("[shortcut] combo swap ->", _comboSwapped ? "X/Y 已互换" : "X/Y 已还原");
+  return _comboSwapped;
+}
+
 function subscribe(callback: () => void) {
   _statusListeners.add(callback);
   return () => { _statusListeners.delete(callback); };
@@ -130,6 +140,28 @@ export function useShortcut() {
         invoke("bridge_set_speed", { factor: back });
         set("speed", back);
       });
+    }
+    // 组合变速：B 按住 → X 速，松开 → Y 速；A 按一下把 X 与 Y 互换。
+    // 注意松开走的是配置死的 Y，不是"恢复按下前的速度"——那是 holdShortcut 的行为。
+    const comboShortcut = s.comboShortcut as string | undefined;
+    if (comboShortcut) {
+      await registerHold(comboShortcut, () => {
+        const x = (get("comboPressSpeed" as keyof typeof s) as number) || 2.0;
+        const y = (get("comboReleaseSpeed" as keyof typeof s) as number) || 1.0;
+        const v = _comboSwapped ? y : x;
+        invoke("bridge_set_speed", { factor: v });
+        set("speed", v);
+      }, () => {
+        const x = (get("comboPressSpeed" as keyof typeof s) as number) || 2.0;
+        const y = (get("comboReleaseSpeed" as keyof typeof s) as number) || 1.0;
+        const v = _comboSwapped ? x : y;
+        invoke("bridge_set_speed", { factor: v });
+        set("speed", v);
+      });
+    }
+    const comboSwapShortcut = s.comboSwapShortcut as string | undefined;
+    if (comboSwapShortcut) {
+      await reg(comboSwapShortcut, () => { toggleComboSwap(); });
     }
   }, [register, registerHold, set, getAll, get]);
 

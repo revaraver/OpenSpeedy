@@ -23,6 +23,13 @@ export interface SettingsState {
   holdShortcut: string;
   holdSpeed: number;
 
+  // 组合变速：B(comboShortcut) 按住走 X(comboPressSpeed)、松开走 Y(comboReleaseSpeed)；
+  // A(comboSwapShortcut) 按一下把 X 与 Y 互换。
+  comboSwapShortcut: string;
+  comboShortcut: string;
+  comboPressSpeed: number;
+  comboReleaseSpeed: number;
+
   theme: "light" | "dark";
   autoStart: boolean;
   alwaysOnTop: boolean;
@@ -53,6 +60,11 @@ export const DEFAULTS: SettingsState = {
 
   holdShortcut: "",
   holdSpeed: 2.0,
+
+  comboSwapShortcut: "",
+  comboShortcut: "",
+  comboPressSpeed: 2.0,
+  comboReleaseSpeed: 1.0,
 
   theme: "light" as const,
   autoStart: false,

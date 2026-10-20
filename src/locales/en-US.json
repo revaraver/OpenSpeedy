@@ -85,6 +85,7 @@
     "reset": "Reset",
     "gears": "Speed Gears",
     "hold": "Hold",
+    "combo": "Combo",    "comboSwap": "Combo swap key",    "comboSwapHint": "Press once to swap the two multipliers below",    "comboPress": "While held",    "comboRelease": "On release",
     "gear": "Gear",
     "multiplier": "Multiplier",
     "general": "General",

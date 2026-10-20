@@ -85,6 +85,7 @@
     "reset": "重置",
     "gears": "变速档位",
     "hold": "按住变速",
+    "combo": "组合变速",    "comboSwap": "组合·交换键",    "comboSwapHint": "按一下交换下面两个倍率的位置",    "comboPress": "按住时",    "comboRelease": "松开时",
     "gear": "档位",
     "multiplier": "倍率",
     "general": "通用设置",
