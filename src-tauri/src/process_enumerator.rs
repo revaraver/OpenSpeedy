@@ -243,17 +243,25 @@ pub fn enumerate_processes_fast() -> Vec<ProcessInfo> {
                         admin: cached.admin,
                     });
                 } else {
-                    // New process — eagerly fetch arch + exe path + admin (cheapest), defer memory+title
+                    // New process — 一次测完就把真实值写进缓存。
+                    // 之前这里往缓存里写的是 0 / None（注释写着 "defer memory+title"），
+                    // 但下面 push 时又照样调用了 get_memory_kb 和 find_window_title，
+                    // 所以 defer 根本没省下任何开销，只是让缓存里的值和实际算出来的值
+                    // 不一致：下一秒这个 PID 命中缓存就吐出 memory_kb = 0，而 UI 用
+                    // memory_kb > 0 过滤进程，于是"进程页挂载之后才启动的进程"出现一秒
+                    // 后就被隐藏，只能重启软件（重新挂载触发 full 枚举）才看得见。
                     let arch = detect_arch(pid);
                     let exe_path = get_exe_path(pid);
                     let admin = is_admin(pid);
-                    cache_set(pid, arch.clone(), None, 0, exe_path.clone(), admin);
+                    let memory_kb = get_memory_kb(pid);
+                    let window_title = find_window_title(pid);
+                    cache_set(pid, arch.clone(), window_title.clone(), memory_kb, exe_path.clone(), admin);
                     processes.push(ProcessInfo {
                         pid,
                         name,
                         arch,
-                        window_title: find_window_title(pid),
-                        memory_kb: get_memory_kb(pid),
+                        window_title,
+                        memory_kb,
                         exe_path,
                         admin,
                     });
